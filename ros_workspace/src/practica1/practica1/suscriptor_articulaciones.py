@@ -30,9 +30,6 @@ class SuscriptorArticulaciones(Node):
             datos["velocidad"] = mensaje.velocity[i]
             datos["esfuerzo"] = mensaje.effort[i]
             self.articulaciones[nombre] = datos
-            print(f"Articulación: {nombre}")
-            print(f"Datos: {datos}")
-            print("--------------------------------")
     def obtener_datos(self) -> dict[str, dict[str, float]]:
         """Obtiene los datos de las articulaciones del robot.
         
