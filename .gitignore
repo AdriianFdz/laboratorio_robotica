@@ -1,5 +1,4 @@
-build
-install/
-log/
-__pycache__/
-*.pyc
+*
+!.gitignore
+!ros_workspace/
+!ros_workspace/**
