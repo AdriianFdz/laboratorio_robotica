@@ -269,6 +269,8 @@ def main() -> None:
         control.get_logger().info("Esperando a que se reciban datos de las articulaciones...")
         control.cliente_move_group.wait_for_server()
         control.get_logger().info("Conexión con el servidor de MoveIt establecida.")
+
+        suscriptor.trayectoria_actual = "joint"
         
         # Movimiento Joint
         resultado_joint = control.mover_articulaciones([
@@ -281,17 +283,52 @@ def main() -> None:
         ])
         print(f"Resultado del movimiento a articulaciones: {resultado_joint}")
 
+        suscriptor.trayectoria_actual = "lineal"
+
         # Movimiento lineal
         resultado_lineal = control.mover_lineal(0.1)
 
         print(f"Resultado del movimiento lineal: {resultado_lineal}")
 
+        suscriptor.trayectoria_actual = "circular"
+
         # Movimiento circular de 2 cm de radio
         resultado_circular = control.mover_circular(0.02)
         print(f"Resultado del movimiento circular: {resultado_circular}")
 
+        suscriptor.trayectoria_actual = "sin_trayectoria"
+
         time.sleep(1)
         print(suscriptor.obtener_datos())
+
+        print(f"Muestras guardadas: {len(suscriptor.historial)}")
+        print("Primeras dos muestras con aceleración calculada:")
+        mostradas = 0
+
+        for muestra in suscriptor.historial:
+            if muestra["aceleracion"] is not None:
+                print(muestra)
+                mostradas += 1
+
+                if mostradas == 2:
+                    break
+
+        velocidad_maxima = max(
+            (abs(m["velocidad"]) for m in suscriptor.historial),
+            default=0.0,
+        )
+        print(f"Máxima velocidad registrada: {velocidad_maxima} rad/s")
+
+        for trayectoria in ("joint", "lineal", "circular"):
+            cantidad = sum(
+                1 for muestra in suscriptor.historial
+                if muestra["trayectoria"] == trayectoria
+            )
+            print(f"Muestras de {trayectoria}: {cantidad}")
+
+        ruta_csv = "/home/laboratorio/ros_workspace/resultados/practica1.csv"
+        suscriptor.guardar_csv(ruta_csv)
+        print(f"Datos guardados en: {ruta_csv}")
 
     except KeyboardInterrupt:
         control.get_logger().info("Nodo ControlRobot detenido por el usuario.")
