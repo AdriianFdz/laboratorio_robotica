@@ -1,5 +1,5 @@
 import rclpy
-from math import pi
+from math import pi, sin, cos
 from typing import List
 import time
 import threading
@@ -131,6 +131,69 @@ class ControlRobot(Node):
         pose.orientation.w = transformacion.transform.rotation.w
 
         return pose
+
+    def generar_circulo(self, radio: float = 0.02) -> List[Pose]:
+        """Genera un círculo en el plano XY desde la pose actual."""
+        pose_inicial = self.pose_actual()
+        numero_puntos = 40
+        poses = []
+
+        for i in range(1, numero_puntos + 1):
+            angulo = 2 * pi * i / numero_puntos
+
+            pose = Pose()
+            pose.position.x = (
+                pose_inicial.position.x + radio * (cos(angulo) - 1)
+            )
+            pose.position.y = (
+                pose_inicial.position.y + radio * sin(angulo)
+            )
+            pose.position.z = pose_inicial.position.z
+            pose.orientation = pose_inicial.orientation
+
+            poses.append(pose)
+
+        return poses
+
+    def mover_circular(self, radio: float = 0.02) -> bool:
+        """Calcula y ejecuta una trayectoria circular."""
+        solicitud = GetCartesianPath.Request()
+        solicitud.header.frame_id = "world"
+        solicitud.start_state.is_diff = True
+        solicitud.group_name = self.group_name
+        solicitud.link_name = "wrist_3_link"
+        solicitud.max_step = 0.005
+        solicitud.avoid_collisions = True
+        solicitud.waypoints = self.generar_circulo(radio)
+
+        self.cliente_calculo_trayectoria.wait_for_service()
+        respuesta = self.__esperar(
+            self.cliente_calculo_trayectoria.call_async(solicitud)
+        )
+
+        if (
+            respuesta.error_code.val != MoveItErrorCodes.SUCCESS
+            or respuesta.fraction < 0.999
+        ):
+            self.get_logger().error(
+                f"No se pudo completar el círculo: {respuesta.fraction:.1%}"
+            )
+            return False
+
+        objetivo = ExecuteTrajectory.Goal()
+        objetivo.trajectory = respuesta.solution
+
+        self.cliente_ejecucion_trayectoria.wait_for_server()
+        manejador = self.__esperar(
+            self.cliente_ejecucion_trayectoria.send_goal_async(objetivo)
+        )
+
+        if not manejador.accepted:
+            self.get_logger().error("MoveIt ha rechazado el círculo.")
+            return False
+
+        resultado = self.__esperar(manejador.get_result_async()).result
+        return resultado.error_code.val == MoveItErrorCodes.SUCCESS
     
     def mover_lineal(self, desplazamiento_x: float) -> bool:
         """Mueve linealmente el extremo del robot en el eje X."""
@@ -222,6 +285,10 @@ def main() -> None:
         resultado_lineal = control.mover_lineal(0.1)
 
         print(f"Resultado del movimiento lineal: {resultado_lineal}")
+
+        # Movimiento circular de 2 cm de radio
+        resultado_circular = control.mover_circular(0.02)
+        print(f"Resultado del movimiento circular: {resultado_circular}")
 
         time.sleep(1)
         print(suscriptor.obtener_datos())
